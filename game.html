@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Survival Chaos Game</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+body{
+margin:0;
+overflow:hidden;
+background:#000;
+font-family:Arial;
+}
+
+canvas{
+display:block;
+}
+
+#scoreBoard{
+position:absolute;
+top:10px;
+left:10px;
+color:white;
+font-size:18px;
+}
+
+#gameOver{
+position:absolute;
+top:50%;
+left:50%;
+transform:translate(-50%,-50%);
+color:white;
+display:none;
+text-align:center;
+}
+
+#menu{
+position:absolute;
+top:0;left:0;
+width:100%;height:100%;
+background:black;
+color:white;
+display:flex;
+flex-direction:column;
+justify-content:center;
+align-items:center;
+z-index:999;
+}
+
+button{
+padding:10px 20px;
+margin:5px;
+cursor:pointer;
+}
+</style>
+</head>
+
+<body>
+
+<div id="menu">
+<h1>Survival Chaos</h1>
+<p>Select Difficulty</p>
+<button onclick="startGame('easy')">Easy</button>
+<button onclick="startGame('medium')">Medium</button>
+<button onclick="startGame('hard')">Hard</button>
+<button onclick="startGame('impossible')">Impossible 💀</button>
+</div>
+
+<div id="scoreBoard">Score: 0</div>
+<div id="gameOver">Game Over 💀<br><button onclick="location.reload()">Restart</button></div>
+
+<canvas id="game"></canvas>
+
+<script>
+const canvas=document.getElementById("game");
+const ctx=canvas.getContext("2d");
+
+let w,h;
+function resize(){
+w=canvas.width=innerWidth;
+h=canvas.height=innerHeight;
+}
+resize();
+window.addEventListener("resize",resize);
+
+let score=0;
+let enemies=[];
+let particles=[];
+let boss=null;
+let bossActive=false;
+let bossTimer=0;
+let running=true;
+let lastSpawn=0;
+let chaos=1;
+let difficulty="medium";
+
+let settings={
+spawnRate:800,
+enemySpeed:2,
+chaosSpeed:0.002,
+bossTime:800
+};
+
+const player={
+x:w/2,
+y:h/2,
+size:16
+};
+
+function setDifficulty(mode){
+difficulty=mode;
+
+if(mode==="easy"){
+settings.spawnRate=1000;
+settings.enemySpeed=1.5;
+settings.chaosSpeed=0.001;
+settings.bossTime=1200;
+}
+
+if(mode==="medium"){
+settings.spawnRate=800;
+settings.enemySpeed=2;
+settings.chaosSpeed=0.002;
+settings.bossTime=800;
+}
+
+if(mode==="hard"){
+settings.spawnRate=500;
+settings.enemySpeed=3;
+settings.chaosSpeed=0.004;
+settings.bossTime=500;
+}
+
+if(mode==="impossible"){
+settings.spawnRate=250;
+settings.enemySpeed=5;
+settings.chaosSpeed=0.01;
+settings.bossTime=300;
+}
+}
+
+function startGame(mode){
+setDifficulty(mode);
+document.getElementById("menu").style.display="none";
+}
+
+window.addEventListener("mousemove",e=>{
+player.x+= (e.clientX-player.x)*0.25;
+player.y+= (e.clientY-player.y)*0.25;
+});
+
+class Enemy{
+constructor(){
+this.size=10+Math.random()*10;
+this.x=Math.random()*w;
+this.y=Math.random()*h;
+this.angle=0;
+this.speed=settings.enemySpeed;
+}
+
+update(){
+let dx=player.x-this.x;
+let dy=player.y-this.y;
+let d=Math.hypot(dx,dy);
+
+this.x+=dx/d*this.speed;
+this.y+=dy/d*this.speed;
+}
+
+draw(){
+ctx.fillStyle=`hsl(${Math.random()*360},100%,50%)`;
+ctx.fillRect(this.x,this.y,this.size,this.size);
+}
+}
+
+class Particle{
+constructor(x,y){
+this.x=x;
+this.y=y;
+this.vx=(Math.random()-0.5)*6;
+this.vy=(Math.random()-0.5)*6;
+this.life=20;
+}
+
+update(){
+this.x+=this.vx;
+this.y+=this.vy;
+this.life--;
+}
+
+draw(){
+ctx.fillStyle="orange";
+ctx.fillRect(this.x,this.y,2,2);
+}
+}
+
+class Boss{
+constructor(){
+this.x=w/2;
+this.y=h/2;
+this.size=80;
+this.hp=30+score;
+this.speed=1;
+}
+
+update(){
+let dx=player.x-this.x;
+let dy=player.y-this.y;
+let d=Math.hypot(dx,dy);
+
+player.x-=dx*0.002;
+player.y-=dy*0.002;
+
+this.x+=dx/d*this.speed;
+this.y+=dy/d*this.speed;
+
+if(Math.random()<0.05){
+enemies.push(new Enemy());
+}
+
+this.speed=1+(1-this.hp/50)*3;
+}
+
+draw(){
+ctx.fillStyle="purple";
+ctx.fillRect(this.x,this.y,this.size,this.size);
+}
+}
+
+function loop(time){
+if(!running) return;
+
+ctx.fillStyle="rgba(0,0,0,0.4)";
+ctx.fillRect(0,0,w,h);
+
+chaos+=settings.chaosSpeed;
+
+ctx.fillStyle="lime";
+ctx.fillRect(player.x,player.y,player.size,player.size);
+
+if(time-lastSpawn>settings.spawnRate){
+enemies.push(new Enemy());
+score++;
+document.getElementById("scoreBoard").innerText="Score: "+score;
+lastSpawn=time;
+}
+
+bossTimer++;
+
+if(!bossActive && bossTimer>settings.bossTime){
+boss=new Boss();
+bossActive=true;
+}
+
+enemies.forEach((e,i)=>{
+e.update();
+e.draw();
+
+let d=Math.hypot(player.x-e.x,player.y-e.y);
+if(d<20){
+running=false;
+document.getElementById("gameOver").style.display="block";
+}
+});
+
+if(bossActive && boss){
+boss.update();
+boss.draw();
+
+let d=Math.hypot(player.x-boss.x,player.y-boss.y);
+if(d<60){
+running=false;
+document.getElementById("gameOver").style.display="block";
+}
+}
+
+requestAnimationFrame(loop);
+}
+
+requestAnimationFrame(loop);
+</script>
+
+</body>
+</html>
