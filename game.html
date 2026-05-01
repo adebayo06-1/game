@@ -1,36 +1,24 @@
 <!DOCTYPE html>
 <html>
 <head>
-<title>Survival Chaos Game</title>
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mobile Chaos Boss</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 <style>
 body{
 margin:0;
 overflow:hidden;
-background:yellow;
+background:#000;
+touch-action:none;
 font-family:Arial;
 }
 
-canvas{
-display:block;
-}
+canvas{display:block;}
 
 #scoreBoard{
 position:absolute;
 top:10px;
 left:10px;
 color:white;
-font-size:18px;
-}
-
-#gameOver{
-position:absolute;
-top:50%;
-left:50%;
-transform:translate(-50%,-50%);
-color:white;
-display:none;
-text-align:center;
 }
 
 #menu{
@@ -46,10 +34,20 @@ align-items:center;
 z-index:999;
 }
 
+#gameOver{
+position:absolute;
+top:50%;
+left:50%;
+transform:translate(-50%,-50%);
+color:white;
+display:none;
+text-align:center;
+}
+
 button{
-padding:10px 20px;
+padding:12px 20px;
 margin:5px;
-cursor:pointer;
+font-size:16px;
 }
 </style>
 </head>
@@ -57,8 +55,7 @@ cursor:pointer;
 <body>
 
 <div id="menu">
-<h1>Survival Chaos</h1>
-<p>Select Difficulty</p>
+<h2>Chaos Survival</h2>
 <button onclick="startGame('easy')">Easy</button>
 <button onclick="startGame('medium')">Medium</button>
 <button onclick="startGame('hard')">Hard</button>
@@ -80,8 +77,9 @@ w=canvas.width=innerWidth;
 h=canvas.height=innerHeight;
 }
 resize();
-window.addEventListener("resize",resize);
+addEventListener("resize",resize);
 
+// GAME STATE
 let score=0;
 let enemies=[];
 let particles=[];
@@ -96,7 +94,6 @@ let difficulty="medium";
 let settings={
 spawnRate:800,
 enemySpeed:2,
-chaosSpeed:0.002,
 bossTime:800
 };
 
@@ -106,34 +103,51 @@ y:h/2,
 size:16
 };
 
+// TOUCH CONTROLS (SMOOTH)
+function movePlayer(x,y){
+player.x = x;
+player.y = y;
+}
+
+canvas.addEventListener("touchstart",e=>{
+e.preventDefault();
+movePlayer(e.touches[0].clientX,e.touches[0].clientY);
+},{passive:false});
+
+canvas.addEventListener("touchmove",e=>{
+e.preventDefault();
+movePlayer(e.touches[0].clientX,e.touches[0].clientY);
+},{passive:false});
+
+canvas.addEventListener("mousemove",e=>{
+movePlayer(e.clientX,e.clientY);
+});
+
+// DIFFICULTY
 function setDifficulty(mode){
 difficulty=mode;
 
 if(mode==="easy"){
 settings.spawnRate=1000;
 settings.enemySpeed=1.5;
-settings.chaosSpeed=0.001;
 settings.bossTime=1200;
 }
 
 if(mode==="medium"){
 settings.spawnRate=800;
 settings.enemySpeed=2;
-settings.chaosSpeed=0.002;
 settings.bossTime=800;
 }
 
 if(mode==="hard"){
 settings.spawnRate=500;
 settings.enemySpeed=3;
-settings.chaosSpeed=0.004;
 settings.bossTime=500;
 }
 
 if(mode==="impossible"){
-settings.spawnRate=250;
-settings.enemySpeed=5;
-settings.chaosSpeed=0.01;
+settings.spawnRate=300;
+settings.enemySpeed=4;
 settings.bossTime=300;
 }
 }
@@ -143,18 +157,13 @@ setDifficulty(mode);
 document.getElementById("menu").style.display="none";
 }
 
-window.addEventListener("mousemove",e=>{
-player.x+= (e.clientX-player.x)*0.25;
-player.y+= (e.clientY-player.y)*0.25;
-});
-
+// ENEMY
 class Enemy{
 constructor(){
-this.size=10+Math.random()*10;
 this.x=Math.random()*w;
 this.y=Math.random()*h;
-this.angle=0;
-this.speed=settings.enemySpeed;
+this.size=12;
+this.speed=settings.enemySpeed + chaos*0.3;
 }
 
 update(){
@@ -167,18 +176,19 @@ this.y+=dy/d*this.speed;
 }
 
 draw(){
-ctx.fillStyle=`hsl(${Math.random()*360},100%,50%)`;
+ctx.fillStyle="red";
 ctx.fillRect(this.x,this.y,this.size,this.size);
 }
 }
 
+// PARTICLES (LIGHTWEIGHT)
 class Particle{
 constructor(x,y){
 this.x=x;
 this.y=y;
-this.vx=(Math.random()-0.5)*6;
-this.vy=(Math.random()-0.5)*6;
-this.life=20;
+this.vx=(Math.random()-0.5)*4;
+this.vy=(Math.random()-0.5)*4;
+this.life=15;
 }
 
 update(){
@@ -193,13 +203,13 @@ ctx.fillRect(this.x,this.y,2,2);
 }
 }
 
+// BOSS (OPTIMIZED)
 class Boss{
 constructor(){
 this.x=w/2;
 this.y=h/2;
-this.size=80;
-this.hp=30+score;
-this.speed=1;
+this.size=60;
+this.speed=1.5;
 }
 
 update(){
@@ -207,17 +217,22 @@ let dx=player.x-this.x;
 let dy=player.y-this.y;
 let d=Math.hypot(dx,dy);
 
-player.x-=dx*0.002;
-player.y-=dy*0.002;
+// light gravity pull (not too strong for mobile)
+player.x -= dx * 0.0015;
+player.y -= dy * 0.0015;
 
-this.x+=dx/d*this.speed;
-this.y+=dy/d*this.speed;
+this.x += dx/d * this.speed;
+this.y += dy/d * this.speed;
 
-if(Math.random()<0.05){
+// controlled spawning
+if(Math.random()<0.02){
 enemies.push(new Enemy());
 }
 
-this.speed=1+(1-this.hp/50)*3;
+// small particle burst
+if(Math.random()<0.02){
+particles.push(new Particle(this.x,this.y));
+}
 }
 
 draw(){
@@ -226,17 +241,21 @@ ctx.fillRect(this.x,this.y,this.size,this.size);
 }
 }
 
+// GAME LOOP
 function loop(time){
 if(!running) return;
 
-ctx.fillStyle="rgba(0,0,0,0.4)";
+ctx.fillStyle="rgba(0,0,0,0.3)";
 ctx.fillRect(0,0,w,h);
 
-chaos+=settings.chaosSpeed;
-
+// PLAYER
 ctx.fillStyle="lime";
 ctx.fillRect(player.x,player.y,player.size,player.size);
 
+// CHAOS SCALE (controlled)
+chaos += 0.001;
+
+// SPAWN ENEMIES
 if(time-lastSpawn>settings.spawnRate){
 enemies.push(new Enemy());
 score++;
@@ -244,14 +263,15 @@ document.getElementById("scoreBoard").innerText="Score: "+score;
 lastSpawn=time;
 }
 
+// BOSS SPAWN
 bossTimer++;
-
 if(!bossActive && bossTimer>settings.bossTime){
 boss=new Boss();
 bossActive=true;
 }
 
-enemies.forEach((e,i)=>{
+// ENEMIES
+enemies.forEach(e=>{
 e.update();
 e.draw();
 
@@ -262,16 +282,24 @@ document.getElementById("gameOver").style.display="block";
 }
 });
 
+// BOSS
 if(bossActive && boss){
 boss.update();
 boss.draw();
 
 let d=Math.hypot(player.x-boss.x,player.y-boss.y);
-if(d<60){
+if(d<50){
 running=false;
 document.getElementById("gameOver").style.display="block";
 }
 }
+
+// PARTICLES
+particles.forEach((p,i)=>{
+p.update();
+p.draw();
+if(p.life<=0)particles.splice(i,1);
+});
 
 requestAnimationFrame(loop);
 }
